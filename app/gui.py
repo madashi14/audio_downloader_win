@@ -1,26 +1,25 @@
 """Audio Downloader: interfaccia grafica per scaricare MP3 da YouTube e SoundCloud."""
-import ctypes
 import json
-import os
 import queue
 import re
-import subprocess
 import threading
 import time
 import traceback
 from pathlib import Path
 from tkinter import TclError, filedialog
+from tkinter import font as tkfont
 
 import customtkinter as ctk
 import yt_dlp
-from PIL import Image
+from PIL import Image, ImageTk
 
 from downloader import _get_platform, scarica_mp3
+from piattaforma import MAC, WINDOWS, apri, cartella_dati, mostra_nel_file_manager
 
 APP_NAME = "Audio Downloader"
 BASE = Path(__file__).resolve().parent
 ASSETS = BASE / "assets"
-DATA_DIR = Path(os.environ.get("APPDATA", Path.home())) / "AudioDownloader"
+DATA_DIR = cartella_dati()
 SETTINGS_FILE = DATA_DIR / "settings.json"
 ERROR_LOG = DATA_DIR / "errori.log"
 
@@ -69,6 +68,8 @@ class _LoggerSilenzioso:
 
 ERRORI_NOTI = [  # (frammento del messaggio di yt-dlp, spiegazione in italiano)
     ("Private video", "Il video è privato."),
+    ("not a bot", "YouTube chiede di dimostrare che non sei un robot: riprova tra un po' "
+                  "o da un'altra connessione (succede con VPN e reti condivise)."),
     ("video is unavailable", "Il video non è disponibile: rimosso, privato o link sbagliato."),
     ("Video unavailable", "Il video non è disponibile: rimosso, privato o link sbagliato."),
     ("confirm your age", "Il video ha limiti di età e richiede l'accesso a YouTube."),
@@ -115,9 +116,8 @@ class AudioDownloaderApp(ctk.CTk):
         super().__init__(fg_color=BG)
 
         self.title(APP_NAME)
-        icona = ASSETS / "icon.ico"
-        if icona.exists():
-            self.iconbitmap(str(icona))
+        self._famiglia_font = "Segoe UI" if WINDOWS else tkfont.nametofont("TkDefaultFont").actual("family")
+        self._imposta_icona()
         self._dimensiona_finestra(640, 800)
         self.minsize(540, 660)
 
@@ -139,11 +139,46 @@ class AudioDownloaderApp(ctk.CTk):
         self.bind("<FocusIn>", self._autoincolla)
         self.protocol("WM_DELETE_WINDOW", self._chiudi)
         self.after(100, self._leggi_coda)
-        self.after(300, self.url_entry.focus_set)
+        self.after(300, self._all_avvio)
+
+    def _all_avvio(self):
+        self._porta_in_primo_piano()
+        self.url_entry.focus_set()
+        # controlla subito gli appunti: su Mac la finestra può aprirsi senza ricevere il focus
+        self._autoincolla()
+
+    def _porta_in_primo_piano(self):
+        if MAC:
+            try:
+                from AppKit import NSApplication
+                app = NSApplication.sharedApplication()
+                if hasattr(app, "activate"):          # macOS 14+
+                    app.activate()
+                else:
+                    app.activateIgnoringOtherApps_(True)
+            except Exception:
+                pass
+        self.lift()
+        try:
+            self.focus_force()
+        except TclError:
+            pass
 
     # ------------------------------------------------------------------ UI
     def _font(self, size, weight="normal"):
-        return ctk.CTkFont(family="Segoe UI", size=size, weight=weight)
+        return ctk.CTkFont(family=self._famiglia_font, size=size, weight=weight)
+
+    def _imposta_icona(self):
+        try:
+            if WINDOWS and (ASSETS / "icon.ico").exists():
+                self.iconbitmap(str(ASSETS / "icon.ico"))
+            elif (ASSETS / "icon.png").exists():
+                # su Mac questo imposta anche l'icona nel Dock
+                img = Image.open(ASSETS / "icon.png").resize((256, 256), Image.LANCZOS)
+                self._icona_tk = ImageTk.PhotoImage(img, master=self)
+                self.iconphoto(True, self._icona_tk)
+        except (TclError, OSError):
+            pass
 
     def _dimensiona_finestra(self, w, h):
         try:
@@ -351,7 +386,7 @@ class AudioDownloaderApp(ctk.CTk):
     def _apri_cartella(self):
         cartella = Path(self.dir_var.get()).expanduser()
         cartella.mkdir(parents=True, exist_ok=True)
-        os.startfile(cartella)
+        apri(cartella)
 
     def _cambia_tema(self):
         nuovo = "light" if ctk.get_appearance_mode() == "Dark" else "dark"
@@ -610,13 +645,13 @@ class AudioDownloaderApp(ctk.CTk):
 
     def _apri_file(self, percorso):
         if Path(percorso).exists():
-            os.startfile(percorso)
+            apri(percorso)
         else:
             self._mostra_stato("File non trovato", "Il file è stato spostato o eliminato.", ERROR)
 
     def _mostra_in_esplora(self, percorso):
         if Path(percorso).exists():
-            subprocess.Popen(f'explorer /select,"{percorso}"')
+            mostra_nel_file_manager(percorso)
         else:
             self._apri_cartella()
 
@@ -656,12 +691,29 @@ class AudioDownloaderApp(ctk.CTk):
         self.destroy()
 
 
+def _prepara_sistema():
+    if WINDOWS:
+        try:
+            # Icona corretta nella barra delle applicazioni anche se avviato con pythonw.exe
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("AudioDownloader.App")
+        except Exception:
+            pass
+    elif MAC:
+        try:
+            # Nome giusto nella barra dei menu ("Audio Downloader" invece di "Python");
+            # va fatto prima di creare la finestra. Richiede pyobjc (lo installa l'installer).
+            from Foundation import NSBundle
+            bundle = NSBundle.mainBundle()
+            info = bundle.localizedInfoDictionary() or bundle.infoDictionary()
+            if info is not None:
+                info["CFBundleName"] = APP_NAME
+        except Exception:
+            pass
+
+
 def main():
-    try:
-        # Icona corretta nella barra delle applicazioni anche se avviato con pythonw.exe
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("AudioDownloader.App")
-    except Exception:
-        pass
+    _prepara_sistema()
     AudioDownloaderApp().mainloop()
 
 

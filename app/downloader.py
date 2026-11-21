@@ -1,5 +1,3 @@
-import os
-import shutil
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -7,6 +5,8 @@ try:
     import yt_dlp
 except ImportError:
     raise SystemExit("Installa yt-dlp: pip install yt-dlp")
+
+from piattaforma import trova_eseguibile
 
 # dominio -> piattaforma (vale anche per i sottodomini: www., m., music., on., ...)
 _DOMINI = {
@@ -23,16 +23,6 @@ def _normalizza_url(url):
     if "://" not in url:
         url = "https://" + url
     return url
-
-
-def _trova_deno():
-    """Percorso di deno.exe (serve a yt-dlp per YouTube), anche se il PATH non è aggiornato."""
-    trovato = shutil.which("deno")
-    if trovato:
-        return trovato
-    winget = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Packages"
-    candidati = sorted(winget.glob("DenoLand.Deno_*/deno.exe")) if winget.is_dir() else []
-    return str(candidati[0]) if candidati else None
 
 
 def _get_platform(url):
@@ -56,6 +46,10 @@ def scarica_mp3(url, directory=".", bitrate=320, metadati=True,
     if _get_platform(url) == "unknown":
         raise ValueError("Piattaforma non supportata: " + url)
 
+    ffmpeg = trova_eseguibile("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg non trovato: riesegui l'installer di Audio Downloader.")
+
     bitrate = max(32, min(int(bitrate), 320))
     out_dir = Path(directory).expanduser()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -74,16 +68,16 @@ def scarica_mp3(url, directory=".", bitrate=320, metadati=True,
         ]
 
     ydl_opts = {
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
         'format': 'bestaudio/best',
         'outtmpl': str(out_dir / '%(title)s.%(ext)s'),
         'writethumbnail': metadati,
         'postprocessors': postprocessors,
-        # Forza IPv4 (= --force-ipv4): su questa rete le connessioni IPv6 verso YouTube
-        # restano appese fino al timeout, e un brano da 19 s impiegava ~5 minuti invece di 3 s.
+        'ffmpeg_location': ffmpeg,
+        # Forza IPv4 (= --force-ipv4): su alcune reti le connessioni IPv6 verso YouTube
+        # restano appese fino al timeout e un download di pochi secondi dura minuti.
         'source_address': '0.0.0.0',
     }
-    deno = _trova_deno()
+    deno = trova_eseguibile("deno")  # serve a yt-dlp per risolvere le protezioni di YouTube
     if deno:
         ydl_opts['js_runtimes'] = {'deno': {'path': deno}}
     if progress_hook:

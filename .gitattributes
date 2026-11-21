@@ -1,0 +1,6 @@
+# Nel repository i testi hanno fine riga Unix (così "irm | iex" legge lo script pulito);
+# i file .cmd invece devono avere fine riga Windows quando vengono estratti.
+* text=auto
+*.cmd text eol=crlf
+*.png binary
+*.ico binary

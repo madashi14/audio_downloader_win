@@ -1,0 +1,21 @@
+AUDIO DOWNLOADER PER WINDOWS
+Scarica l'audio di YouTube e SoundCloud in MP3, con titolo, artista e copertina.
+
+COME SI INSTALLA
+1. Estrai lo zip: tasto destro sul file .zip > "Estrai tutto".
+2. Nella cartella estratta fai doppio clic su "Installa Audio Downloader.cmd".
+3. Se Windows avvisa che il file viene da internet: "Esegui" (oppure "Ulteriori
+   informazioni" > "Esegui comunque"). Succede solo perché il file non è firmato.
+4. Si apre una finestra nera: aspetta qualche minuto finché scrive "Fatto!".
+   L'app si apre da sola e da quel momento la trovi sul Desktop e nel menu Start.
+
+Non servono permessi di amministratore. Servono una connessione a internet e circa
+1 GB di spazio libero (alla fine l'app ne occupa circa 600 MB).
+
+SE YOUTUBE DICE "dimostra che non sei un robot": spegni la VPN o riprova più tardi.
+
+AGGIORNARE: rifai doppio clic su "Installa Audio Downloader.cmd".
+DISINSTALLARE: Impostazioni > App > App installate > Audio Downloader > Disinstalla
+(oppure doppio clic su "Disinstalla Audio Downloader.cmd"). Gli MP3 restano.
+
+Usala solo per contenuti che hai il diritto di scaricare.
